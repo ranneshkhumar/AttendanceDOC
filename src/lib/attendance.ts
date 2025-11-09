@@ -100,4 +100,40 @@ export const validateAttendanceData = (data: AttendanceData): string | null => {
   }
   return null
 }
+import { supabase } from "./supabase";
+
+export async function saveAttendanceResult(userId: string, result: AttendanceResult) {
+  if (!supabase) return;
+
+  const row = {
+    user_id: userId,
+    subject: result.subject,
+    classes_attended: result.classesAttended,
+    classes_held: result.classesHeld,
+    classes_remaining: result.classesRemaining ?? null,
+    percentage: result.percentage,
+    min_required: result.minPercent,
+    must_attend: result.required ?? null,
+    can_skip: result.canSkip ?? null,
+    date: result.date ?? null,
+    day: result.dayOfWeek ?? null,
+  };
+
+  return await supabase
+    .from("attendance")
+    .upsert(row, {
+      onConflict: "user_id,subject",
+    });
+}
+export async function loadAttendanceResults(userId: string) {
+  if (!supabase) return [];
+
+  const { data } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("user_id", userId);
+
+  return data || [];
+}
+
 
