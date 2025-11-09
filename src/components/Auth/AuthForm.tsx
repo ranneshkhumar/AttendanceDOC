@@ -9,6 +9,9 @@ import { AuthMode } from '@/types'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { User, Mail, Lock, UserCircle, Hash, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useAuthStore } from '@/store/authStore'
+import { loadAttendanceResults } from '@/lib/attendance'
+
 
 interface AuthFormProps {
   onSuccess: () => void
@@ -45,77 +48,90 @@ export const AuthForm = ({ onSuccess }: AuthFormProps) => {
   
   const passwordStrength = mode === 'signup' ? getPasswordStrength(password) : null
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSuccess(false)
-    setLoading(true)
+const handleSignUp = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setError(null)
+  setSuccess(false)
+  setLoading(true)
 
-    if (!name || !rollNumber || !email || !password) {
-      setError('All fields are required')
-      setLoading(false)
-      return
-    }
-
-    if (!isValidEmail(email)) {
-      setError('Please enter a valid email address')
-      setLoading(false)
-      return
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long')
-      setLoading(false)
-      return
-    }
-
-    const { user, error: authError } = await signUp(name, rollNumber, email, password)
-    
-    if (authError) {
-      setError(authError)
-    } else if (user) {
-      setSuccess(true)
-      setTimeout(() => {
-        setUser(user)
-        onSuccess()
-      }, 500)
-    }
-    
+  if (!name || !rollNumber || !email || !password) {
+    setError('All fields are required')
     setLoading(false)
+    return
   }
+
+  if (!isValidEmail(email)) {
+    setError('Please enter a valid email address')
+    setLoading(false)
+    return
+  }
+
+  if (password.length < 6) {
+    setError('Password must be at least 6 characters long')
+    setLoading(false)
+    return
+  }
+
+  const { user, error: authError } = await signUp(name, rollNumber, email, password)
+
+  if (authError) {
+    setError(authError)
+  } else if (user) {
+    setSuccess(true)
+
+    // 🔥 New account → empty attendance history
+    useAuthStore.getState().setAttendanceCache([])
+
+    setTimeout(() => {
+      setUser(user)
+      onSuccess()
+    }, 500)
+  }
+
+  setLoading(false)
+}
+
 
   const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSuccess(false)
-    setLoading(true)
+  e.preventDefault()
+  setError(null)
+  setSuccess(false)
+  setLoading(true)
 
-    if (!email || !password) {
-      setError('Email and password are required')
-      setLoading(false)
-      return
-    }
-
-    if (!isValidEmail(email)) {
-      setError('Please enter a valid email address')
-      setLoading(false)
-      return
-    }
-
-    const { user, error: authError } = await signIn(email, password)
-    
-    if (authError) {
-      setError(authError)
-    } else if (user) {
-      setSuccess(true)
-      setTimeout(() => {
-        setUser(user)
-        onSuccess()
-      }, 500)
-    }
-    
+  if (!email || !password) {
+    setError('Email and password are required')
     setLoading(false)
+    return
   }
+
+  if (!isValidEmail(email)) {
+    setError('Please enter a valid email address')
+    setLoading(false)
+    return
+  }
+
+  const { user, error: authError } = await signIn(email, password)
+
+  if (authError) {
+    setError(authError)
+  } else if (user) {
+    setSuccess(true)
+
+    // 🔥 Load attendance history for this user
+    const savedAttendance = await loadAttendanceResults(user.id)
+
+    // 🔥 Store in global state (Zustand)
+    useAuthStore.getState().setAttendanceCache(savedAttendance)
+
+    setTimeout(() => {
+      setUser(user)
+      onSuccess()
+    }, 500)
+  }
+
+  setLoading(false)
+}
+
 
   const handleGuestLogin = () => {
     setUser({ name: 'Guest User', guest: true })
@@ -435,4 +451,5 @@ export const AuthForm = ({ onSuccess }: AuthFormProps) => {
     </div>
   )
 }
+
 
