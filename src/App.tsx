@@ -5,6 +5,7 @@ import { AttendanceCalculator } from './components/AttendanceCalculator/Attendan
 import { SummaryReport } from './components/SummaryReport/SummaryReport'
 import { useAuthStore } from './store/authStore'
 import { useAppStore } from './store/appStore'
+console.log("TEST BUILD:", new Date().toISOString());
 
 type AppStep = 'auth' | 'year' | 'calculator' | 'summary'
 
@@ -60,4 +61,5 @@ function App() {
 }
 
 export default App
+
 
