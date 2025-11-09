@@ -9,6 +9,11 @@ import { calculateAttendance, validateAttendanceData } from '@/lib/attendance'
 import { AttendanceData, AttendanceResult } from '@/types'
 import { CheckCircle2, XCircle, AlertCircle, Calculator, Calendar, ArrowLeft, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
+import { saveAttendanceResult } from '@/lib/attendance'
+import { loadAttendanceResults } from '@/lib/attendance'
+
+
 
 interface AttendanceCalculatorProps {
   onNext: () => void
@@ -22,6 +27,9 @@ export const AttendanceCalculator = ({ onNext, onBack }: AttendanceCalculatorPro
   const setAttendanceResults = useAppStore((state) => state.setAttendanceResults)
 
   const subjects = selectedYear ? getSubjectsForYear(selectedYear) : []
+  const user = useAuthStore((state) => state.user)
+const attendanceCache = useAuthStore((state) => state.attendanceCache)
+
   
   // Load existing data if available, otherwise use default date
   const existingDate = attendanceData.length > 0 
@@ -75,6 +83,32 @@ export const AttendanceCalculator = ({ onNext, onBack }: AttendanceCalculatorPro
       }
     }
   }, [selectedYear, subjects.length])
+  // Auto-fill attendance from Supabase cache
+useEffect(() => {
+  if (!attendanceCache || attendanceCache.length === 0) return
+
+  const updated: Record<string, any> = {}
+
+  attendanceCache.forEach((row) => {
+    updated[row.subject] = {
+      classesAttended: row.classes_attended?.toString() || '',
+      classesHeld: row.classes_held?.toString() || '',
+      classesRemaining: row.classes_remaining?.toString() || '',
+    }
+  })
+
+  // Auto-fill inputs
+  setFormData((prev) => ({
+    ...prev,
+    ...updated,
+  }))
+
+  // Auto-fill date if available
+  if (attendanceCache[0]?.date) {
+    setCommonDate(attendanceCache[0].date.split('T')[0])
+  }
+}, [attendanceCache])
+
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [subjectResults, setSubjectResults] = useState<Record<string, AttendanceResult>>({})
@@ -151,14 +185,23 @@ export const AttendanceCalculator = ({ onNext, onBack }: AttendanceCalculatorPro
         return newErrors
       })
 
-      const result = calculateAttendance(attendanceData)
-      setSubjectResults(prev => ({
-        ...prev,
-        [subject.name]: result
-      }))
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, commonDate, subjects.length])
+     const result = calculateAttendance(attendanceData)
+setSubjectResults(prev => ({
+  ...prev,
+  [subject.name]: result
+}))
+
+// 🔥 Save to Supabase (only if logged-in user)
+if (user && !user.guest) {
+  saveAttendanceResult(user.id, {
+    ...result,
+    classesAttended,
+    classesHeld,
+    classesRemaining,
+    date: new Date(commonDate)
+  })
+}
+
 
   const handleViewSummary = () => {
     const newErrors: Record<string, string> = {}
@@ -447,4 +490,5 @@ export const AttendanceCalculator = ({ onNext, onBack }: AttendanceCalculatorPro
     </div>
   )
 }
+
 
